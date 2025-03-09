@@ -1,4 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:code_text_field/code_text_field.dart';
+import 'package:highlight/languages/dart.dart';
+import 'package:highlight/languages/python.dart';
+import 'package:highlight/languages/javascript.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io' if (dart.library.html) 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html; // Required for web downloads
+
+
+import 'dart:io';
 
 void main() {
   runApp(const MyApp());
@@ -7,119 +20,219 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      debugShowCheckedModeBanner: false,
+      title: 'Code Editor',
+      theme: ThemeData.dark(),
+      home: const EditorPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class EditorPage extends StatefulWidget {
+  const EditorPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<EditorPage> createState() => _EditorPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _EditorPageState extends State<EditorPage> {
+  late CodeController _codeController;
+  String _currentLanguage = 'dart';
+  String? _currentFilePath;
+  final Map<String, Map<String, dynamic>> _supportedLanguages = {
+    'dart': {'mode': dart, 'ext': '.dart'},
+    'python': {'mode': python, 'ext': '.py'},
+    'javascript': {'mode': javascript, 'ext': '.js'},
+  };
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _codeController = CodeController(
+      text: '',
+      language: _supportedLanguages[_currentLanguage]!['mode'],
+      // theme: monokaiSublimeTheme,
+    );
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles();
+      if (result != null) {
+        String content = '';
+
+        if (kIsWeb) {
+          // On the web, use `bytes` instead of `path`
+          final bytes = result.files.single.bytes;
+          if (bytes != null) {
+            content = String.fromCharCodes(bytes);
+          }
+        } else {
+          // On mobile, use `path`
+          final file = File(result.files.single.path!);
+          content = await file.readAsString();
+        }
+
+        setState(() {
+          _currentFilePath = kIsWeb ? 'Web File' : result.files.single.path!;
+          _codeController.text = content;
+
+          // Detect language from file extension
+          final ext = result.files.single.extension?.toLowerCase();
+          for (var entry in _supportedLanguages.entries) {
+            if (entry.value['ext'] == '.$ext') {
+              _currentLanguage = entry.key;
+              _codeController.language = entry.value['mode'];
+              break;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      _showError('Error opening file: $e');
+    }
+  }
+Future<void> _saveFile() async {
+  try {
+    String content = _codeController.text;
+    String? filePath = _currentFilePath;
+
+    if (kIsWeb || filePath == null) {
+      // Show a dialog to ask for a filename
+      String? fileName = await _showFileNameDialog();
+      if (fileName == null || fileName.isEmpty) return;
+
+      // Ensure the filename has the correct extension
+      final extension = _supportedLanguages[_currentLanguage]!['ext'];
+      if (!fileName.endsWith(extension)) {
+        fileName += extension;
+      }
+
+      if (kIsWeb) {
+        // Web: Create a blob and trigger a download
+        final blob = html.Blob([utf8.encode(content)]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final anchor = html.AnchorElement(href: url)
+          ..setAttribute("download", fileName)
+          ..click();
+        html.Url.revokeObjectUrl(url);
+        _showMessage('File downloaded successfully');
+        return;
+      } else {
+        // Ask the user to choose a save location
+        filePath = await FilePicker.platform.saveFile(
+          dialogTitle: "Save File",
+          fileName: fileName,
+          type: FileType.any,
+          allowedExtensions: _supportedLanguages.values
+              .map((e) => e['ext'].substring(1) as String)
+              .toList(),
+        );
+        if (filePath == null) return;
+      }
+    }
+
+    final file = File(filePath);
+    await file.writeAsString(content);
+    setState(() => _currentFilePath = filePath);
+    _showMessage('File saved successfully');
+  } catch (e) {
+    _showError('Error saving file: $e');
+  }
+}
+
+Future<String?> _showFileNameDialog() async {
+  TextEditingController fileNameController = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text("Enter File Name"),
+        content: TextField(
+          controller: fileNameController,
+          decoration: const InputDecoration(hintText: "Enter file name"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(fileNameController.text.trim());
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+
+  void _showError(String message) {
+    print(message);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Code Editor'),
+        actions: [
+          DropdownButton<String>(
+            value: _currentLanguage,
+            items: _supportedLanguages.keys.map((String lang) {
+              return DropdownMenuItem(
+                value: lang,
+                child: Text(lang.toUpperCase()),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                setState(() {
+                  _currentLanguage = newValue;
+                  _codeController.language = _supportedLanguages[newValue]!['mode'];
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: _openFile,
+            tooltip: 'Open File',
+          ),
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _saveFile,
+            tooltip: 'Save File',
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: SingleChildScrollView(
+        child: CodeField(
+          controller: _codeController,
+          wrap: true,
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
