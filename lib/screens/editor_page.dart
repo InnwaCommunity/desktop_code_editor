@@ -1,5 +1,4 @@
 
-import 'dart:developer';
 
 import 'package:code_editor/models/editor_tab.dart';
 import 'package:code_editor/screens/multi_editor_page.dart';
@@ -7,12 +6,10 @@ import 'package:code_text_field/code_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:highlight/highlight_core.dart';
 import 'package:highlight/languages/dart.dart';
-import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/python.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io' if (dart.library.html) 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
-import 'dart:convert';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html; // Required for web downloads
 import '../components/file_explorer.dart';
@@ -29,25 +26,27 @@ class EditorPage extends StatefulWidget {
 }
 
 class _EditorPageState extends State<EditorPage> {
-  late CodeController _codeController;
-  String _currentLanguage = 'dart';
-  String? _currentFilePath;
+  // late CodeController _codeController;
+  // String _currentLanguage = 'dart';
+  // String? _currentFilePath;
+  bool _isExplorerExpanded = true;
+  final double _minDrawerWidth = 200;
+  final double _maxDrawerWidth = 400;
+  double _drawerWidth = 250;
   
-  final Map<String, Map<String, dynamic>> _supportedLanguages = {
-    'dart': {'mode': dart, 'ext': '.dart'},
-    'python': {'mode': python, 'ext': '.py'},
-    'javascript': {'mode': javascript, 'ext': '.js'},
-  };
+  // final Map<String, Map<String, dynamic>> _supportedLanguages = {
+  //   'dart': {'mode': dart, 'ext': '.dart'},
+  //   'python': {'mode': python, 'ext': '.py'},
+  //   'javascript': {'mode': javascript, 'ext': '.js'},
+  // };
   final List<EditorTab> _tabs = [
     EditorTab(
         name: 'dart testing',
-        language: dart,
         controller: CodeController(
           text: '',
           language: dart,
         )), EditorTab(
         name: 'python testing',
-        language: python,
         controller: CodeController(
           text: '',
           language: python,
@@ -57,15 +56,15 @@ class _EditorPageState extends State<EditorPage> {
   @override
   void initState() {
     super.initState();
-    _codeController = CodeController(
-      text: '',
-      language: _supportedLanguages[_currentLanguage]!['mode'],
-    );
+    // _codeController = CodeController(
+    //   text: '',
+    //   language: _supportedLanguages[_currentLanguage]!['mode'],
+    // );
   }
 
   @override
   void dispose() {
-    _codeController.dispose();
+    // _codeController.dispose();
     super.dispose();
   }
 
@@ -88,25 +87,19 @@ Future<void> _openFile() async {
         name = path.basename(file.path); // Extract file name
       }
 
+        // EditorTab newtab= await EditorTab.getContentFromFilePath(result.files.single.path!);
       setState(() {
-        _currentFilePath = kIsWeb ? 'Web File' : result.files.single.path!;
-        _codeController.text = content; // Update UI text controller
+        // _tabs.add(newtab);
+        // _currentFilePath = kIsWeb ? 'Web File' : result.files.single.path!;
+        // _codeController.text = content; // Update UI text controller
 
         final ext = result.files.single.extension?.toLowerCase();
-        for (var entry in _supportedLanguages.entries) {
-          if (entry.value['ext'] == '.$ext') {
-            _currentLanguage = entry.key;
-            _codeController.language = entry.value['mode'];
-
-            // Add a new tab with the correct file name and content
-            _tabs.add(EditorTab.fromContent(
+        Mode language= EditorTab.detectLanguage(ext);
+        _tabs.add(EditorTab.fromContent(
               name: name,
-              language: entry.value['mode'],
+              language: language,
               content: content,
             ));
-            break;
-          }
-        }
       });
     }
   } catch (e) {
@@ -115,53 +108,53 @@ Future<void> _openFile() async {
 }
 
 
-  Future<void> _saveFile() async {
-    try {
-      String content = _codeController.text;
-      String? filePath = _currentFilePath;
+  // Future<void> _saveFile() async {
+  //   try {
+  //     String content = _codeController.text;
+  //     String? filePath = _currentFilePath;
 
-      if (kIsWeb || filePath == null) {
-        String? fileName = await _showFileNameDialog();
-        if (fileName == null || fileName.isEmpty) return;
+  //     if (kIsWeb || filePath == null) {
+  //       String? fileName = await _showFileNameDialog();
+  //       if (fileName == null || fileName.isEmpty) return;
 
-        final extension = _supportedLanguages[_currentLanguage]!['ext'];
-        if (!fileName.endsWith(extension)) {
-          fileName += extension;
-        }
+  //       final extension = _supportedLanguages[_currentLanguage]!['ext'];
+  //       if (!fileName.endsWith(extension)) {
+  //         fileName += extension;
+  //       }
 
-        if (kIsWeb) {
-          final blob = html.Blob([utf8.encode(content)]);
-          final url = html.Url.createObjectUrlFromBlob(blob);
-          // final anchor = html.AnchorElement(href: url)
-          //   ..setAttribute("download", fileName)
-          //   ..click();
-          html.Url.revokeObjectUrl(url);
-          _showMessage('File downloaded successfully');
-          return;
-        } else {
-          filePath = await FilePicker.platform.saveFile(
-            dialogTitle: "Save File",
-            fileName: fileName,
-            type: FileType.any,
-            allowedExtensions: _supportedLanguages.values
-                .map((e) => e['ext'].substring(1) as String)
-                .toList(),
-          );
-          if (filePath == null) return;
-        }
-      }
+  //       if (kIsWeb) {
+  //         final blob = html.Blob([utf8.encode(content)]);
+  //         final url = html.Url.createObjectUrlFromBlob(blob);
+  //         // final anchor = html.AnchorElement(href: url)
+  //         //   ..setAttribute("download", fileName)
+  //         //   ..click();
+  //         html.Url.revokeObjectUrl(url);
+  //         _showMessage('File downloaded successfully');
+  //         return;
+  //       } else {
+  //         filePath = await FilePicker.platform.saveFile(
+  //           dialogTitle: "Save File",
+  //           fileName: fileName,
+  //           type: FileType.any,
+  //           allowedExtensions: _supportedLanguages.values
+  //               .map((e) => e['ext'].substring(1) as String)
+  //               .toList(),
+  //         );
+  //         if (filePath == null) return;
+  //       }
+  //     }
 
-      final file = File(filePath);
-      await file.writeAsString(content);
-      setState(() => _currentFilePath = filePath);
-      _showMessage('File saved successfully');
-    } catch (e) {
-      _showError('Error saving file: $e');
-    }
-  }
+  //     final file = File(filePath);
+  //     await file.writeAsString(content);
+  //     setState(() => _currentFilePath = filePath);
+  //     _showMessage('File saved successfully');
+  //   } catch (e) {
+  //     _showError('Error saving file: $e');
+  //   }
+  // }
 
-  Future<String?> _showFileNameDialog() async {
-    TextEditingController fileNameController = TextEditingController();
+  Future<String?> _showFileNameDialog({String? name}) async {
+    TextEditingController fileNameController = TextEditingController(text:  name ?? '');
     return showDialog<String>(
       context: context,
       builder: (BuildContext context) {
@@ -213,12 +206,25 @@ Future<void> _openFile() async {
     });
   }
 
- void _createNew() {
-  setState(() {
-    Mode languageMode = _supportedLanguages[_currentLanguage]!['mode']; // Get the Mode
-    _tabs.add(EditorTab.createEmpty(language: languageMode));
-  });
+ void _createNew() async {
+  String? res = await _showFileNameDialog(name: 'untitled.dart');
+  if (res != null) {
+    String ext = path.extension(res).toLowerCase(); // Get file extension
+
+    Mode language = EditorTab.detectLanguage(ext);
+
+    setState(() {
+      _tabs.add(EditorTab.createEmpty(name: res, language: language));
+    });
+  }
 }
+
+void _addNew(EditorTab tab) {
+    setState(() {
+      _tabs.add(tab);
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -226,23 +232,6 @@ Future<void> _openFile() async {
       appBar: AppBar(
         title: const Text('Code Editor'),
         actions: [
-          DropdownButton<String>(
-            value: _currentLanguage,
-            items: _supportedLanguages.keys.map((String lang) {
-              return DropdownMenuItem(
-                value: lang,
-                child: Text(lang.toUpperCase()),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _currentLanguage = newValue;
-                  _codeController.language = _supportedLanguages[newValue]!['mode'];
-                });
-              }
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.folder_open),
             onPressed: _openFile,
@@ -250,29 +239,118 @@ Future<void> _openFile() async {
           ),
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: _saveFile,
+            onPressed: ()=>{},
             tooltip: 'Save File',
           ),
         ],
       ),
-      drawer: FileExplorer(),
-      body: MultiEditorPage(
-            tab:_tabs,
-            onClose: (p0) => _closeTab(p0),
-            createNew: () => _createNew(),
+      body: Row(
+        children: [
+          // File Explorer Sidebar
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: _isExplorerExpanded ? _drawerWidth : 48,
+            child: Column(
+              children: [
+                // Explorer Header with toggle button
+                Container(
+                  color: Theme.of(context).colorScheme.surface,
+                  height: 36,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(_isExplorerExpanded 
+                          ? Icons.chevron_left 
+                          : Icons.chevron_right,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isExplorerExpanded = !_isExplorerExpanded;
+                          });
+                        },
+                        tooltip: _isExplorerExpanded ? 'Collapse' : 'Expand',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        iconSize: 18,
+                      ),
+                      if (_isExplorerExpanded) 
+                        const Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 8.0),
+                            child: Text(
+                              'EXPLORER',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Resizable Explorer Content
+                Expanded(
+                  child: _isExplorerExpanded 
+                    ?  FileExplorer(
+                      newTab: (p0) => _addNew(p0),
+                    )
+                    : Column(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.folder),
+                            onPressed: () {
+                              setState(() {
+                                _isExplorerExpanded = true;
+                              });
+                            },
+                            tooltip: 'Files',
+                          ),
+                          // Add more sidebar icons as needed
+                        ],
+                      ),
+                ),
+              ],
+            ),
           ),
-      // body: Column(
-      //   children: [
-      //     MultiEditorPage(
-      //       tab:_tabs,
-      //       onClose: (p0) => _closeTab(p0),
-      //     ),
-      //     // Expanded(
-      //     //   flex: 1,
-      //     //   child: Terminal(),
-      //     // ),
-      //   ],
-      // ),
+          // Resizer
+          if (_isExplorerExpanded)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  _drawerWidth += details.delta.dx;
+                  if (_drawerWidth < _minDrawerWidth) {
+                    _drawerWidth = _minDrawerWidth;
+                  } else if (_drawerWidth > _maxDrawerWidth) {
+                    _drawerWidth = _maxDrawerWidth;
+                  }
+                });
+              },
+              child: Container(
+                width: 8,
+                color: Colors.transparent,
+                height: double.infinity,
+                child: Center(
+                  child: Container(
+                    width: 1,
+                    color: Colors.grey[700],
+                    height: double.infinity,
+                  ),
+                ),
+              ),
+            ),
+          // Editor Content
+          Expanded(
+            child: MultiEditorPage(
+              tab: _tabs,
+              onClose: (p0) => _closeTab(p0),
+              createNew: () => _createNew(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

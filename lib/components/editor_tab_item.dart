@@ -80,15 +80,15 @@ class EditorTabItem extends StatelessWidget {
   }
 
   Widget _getLanguageIcon() {
-    if (identical(tab.language, dart)) {
+    if (identical(tab.controller.language, dart)) {
       return Image.asset(
         'assets/language_ic/flutter_ic.png',
         width: 16,
         height: 16,
       );
-    } else if (identical(tab.language, python)) {
+    } else if (identical(tab.controller.language, python)) {
       return const Icon(Icons.code, size: 16, color: Colors.white70);
-    } else if (identical(tab.language, javascript)) {
+    } else if (identical(tab.controller.language, javascript)) {
       return const Icon(Icons.javascript, size: 16, color: Colors.white70);
     } else {
       return const Icon(Icons.description, size: 16, color: Colors.white70);
